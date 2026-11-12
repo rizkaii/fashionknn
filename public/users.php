@@ -26,18 +26,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $msg_error = 'Seluruh bidang formulir wajib diisi.';
     } elseif (strlen($password) < 6) {
         $msg_error = 'Kata sandi minimal terdiri dari 6 karakter.';
-    } elseif (!in_array($role, $valid_roles)) {
+    } elseif (!preg_match('/^[a-zA-Z0-9_]+$/', $username)) {
+        $msg_error = 'Username hanya boleh berisi huruf, angka, dan underscore.';
+    } elseif (!in_array($role, $valid_roles, true)) {
         $msg_error = 'Role pengguna yang dipilih tidak valid.';
     } else {
         // Cek username unik
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE username = ?");
         $stmt->execute([$username]);
         if ((int)$stmt->fetchColumn() > 0) {
-            $msg_error = "Username '{$username}' sudah digunakan. Silakan gunakan username lain.";
+            $msg_error = "Username '" . h($username) . "' sudah digunakan. Silakan gunakan username lain.";
         } else {
+            // Hash password dengan bcrypt sebelum disimpan
+            $hashedPassword = hash_password($password);
             $ins = $pdo->prepare("INSERT INTO users (name, username, password, role, created_at) VALUES (?, ?, ?, ?, NOW())");
-            $ins->execute([$name, $username, $password, $role]);
-            $msg_success = "Pengguna baru '{$name}' ({$role}) berhasil didaftarkan.";
+            $ins->execute([$name, $username, $hashedPassword, $role]);
+            $msg_success = "Pengguna baru '" . h($name) . "' ({$role}) berhasil didaftarkan.";
         }
     }
 }
@@ -132,12 +136,7 @@ include dirname(__DIR__) . '/app/views/layouts/header.php';
       </div>
 
       <div class="alert alert-info mt-3" style="font-size: 12px;">
-        <strong>Akun Bawaan (Demo):</strong>
-        <div style="margin-top: 4px;">
-          &bull; <code>admin</code> / <code>password</code> (Akses Penuh)<br>
-          &bull; <code>kaunit</code> / <code>password</code> (Monitoring, Evaluasi & Visualisasi)<br>
-          &bull; <code>pemohon</code> / <code>password</code> (Melihat Data Produk & Hasil Prediksi)
-        </div>
+        <strong>Catatan:</strong> Password disimpan menggunakan enkripsi bcrypt. Pastikan gunakan password yang kuat minimal 8 karakter untuk akun production.
       </div>
     </div>
   </div>

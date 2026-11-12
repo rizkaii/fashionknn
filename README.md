@@ -251,3 +251,127 @@ fashiontrendknn/
    - Buka menu **Visualisasi** untuk meninjau diagram grafis interaktif.
 7. **Pengujian Hak Akses**: Logout dan lakukan login sebagai `kaunit` atau `pemohon` untuk memverifikasi pembatasan menu dan proteksi sisi server.
 
+
+---
+
+## Panduan Deployment
+
+Lihat dokumentasi lengkap di:
+
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** — Panduan lengkap deployment ke ArenHost
+- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** — Checklist sebelum go-live
+
+---
+
+## Setup Development Lokal (Laragon)
+
+### Prasyarat
+- Laragon (Windows) dengan PHP 8.1+ dan MySQL
+- Git
+
+### Langkah Setup
+
+```bash
+# 1. Clone repository
+git clone https://github.com/USERNAME/fashiontrendknn.git
+cd fashiontrendknn
+
+# 2. Salin dan konfigurasi environment
+copy .env.example .env
+# Edit .env jika diperlukan (default sudah sesuai Laragon)
+
+# 3. Import database
+# Buka phpMyAdmin di http://localhost/phpmyadmin
+# Buat database: fashion_knn
+# Import file: database/database.sql
+
+# 4. Jalankan migration
+# Buka browser: http://localhost/fashiontrendknn/migrate.php
+# Atau via CLI:
+# C:\laragon\bin\php\php-8.1.10-Win32-vs16-x64\php.exe migrate.php
+
+# 5. Akses aplikasi
+# http://localhost/fashiontrendknn/public/
+```
+
+### Akun Default (Hanya Development)
+
+| Username | Password  | Role    |
+|----------|-----------|---------|
+| admin    | password  | Admin   |
+| kaunit   | password  | Kaunit  |
+| pemohon  | password  | Pemohon |
+
+> **Penting:** Ganti semua password default sebelum deployment ke production.
+
+---
+
+## Struktur Folder
+
+```
+fashiontrendknn/
+├── .github/workflows/     ← CI/CD GitHub Actions
+│   ├── test.yml           ← PHP lint & validasi otomatis
+│   └── deploy.yml         ← Auto-deploy ke ArenHost
+├── app/
+│   ├── config/
+│   │   ├── database.php   ← Bootstrap: env, session, PDO
+│   │   └── env.php        ← .env file loader
+│   ├── helpers/
+│   │   ├── auth.php       ← Autentikasi & otorisasi
+│   │   └── functions.php  ← Helper: h(), csrf, paginate
+│   ├── middleware/
+│   │   └── access.php     ← Page-level access control
+│   ├── services/
+│   │   ├── KNNService.php
+│   │   ├── PreprocessingService.php
+│   │   ├── EvaluationService.php
+│   │   └── DatasetService.php
+│   └── views/layouts/
+│       ├── header.php
+│       └── footer.php
+├── database/
+│   ├── database.sql       ← Schema lengkap + seed data
+│   └── migrations/        ← SQL migration files
+├── public/                ← DOCUMENT ROOT (satu-satunya folder publik)
+│   ├── assets/css/
+│   ├── assets/js/
+│   ├── .htaccess          ← Security headers, HTTPS redirect
+│   └── *.php              ← Halaman aplikasi
+├── storage/
+│   ├── logs/              ← PHP error logs
+│   └── uploads/           ← Upload CSV sementara
+├── .env                   ← Konfigurasi lokal (tidak di-commit)
+├── .env.example           ← Template konfigurasi
+├── .gitignore
+├── migrate.php            ← Database migration runner
+├── DEPLOYMENT.md
+└── DEPLOYMENT_CHECKLIST.md
+```
+
+---
+
+## Keamanan
+
+- Password menggunakan bcrypt (cost=12)
+- CSRF protection pada semua form POST
+- PDO prepared statements untuk semua query
+- Output HTML di-escape dengan `htmlspecialchars()`
+- Session cookie: HttpOnly, SameSite=Lax, Secure (HTTPS)
+- Session timeout: 2 jam inaktivitas
+- Folder `app/`, `database/`, `storage/` tidak bisa diakses via browser
+
+---
+
+## Tech Stack
+
+| Komponen | Teknologi |
+|----------|-----------|
+| Backend  | PHP 8.1+ Native |
+| Database | MySQL 8.0+ / MariaDB 10.4+ |
+| Frontend | HTML5, CSS3, Vanilla JavaScript |
+| Icons    | Lucide Icons (CDN) |
+| Charts   | Chart.js (CDN) |
+| Fonts    | Google Fonts - Inter |
+| Server   | Apache + mod_rewrite |
+| CI/CD    | GitHub Actions |

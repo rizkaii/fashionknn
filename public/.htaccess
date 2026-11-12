@@ -1,0 +1,154 @@
+# ============================================================
+# FashionTrendKNN — Public Directory .htaccess
+# Apache 2.4 / ArenHost Shared Hosting Compatible
+# ============================================================
+
+# ----------------------------------------------------------
+# A. OPTIONS & ENGINE
+# ----------------------------------------------------------
+Options -Indexes -MultiViews
+Options +FollowSymLinks
+
+# Aktifkan mod_rewrite
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Redirect HTTP ke HTTPS (aktifkan setelah SSL terpasang)
+    # Uncomment 3 baris di bawah ini setelah domain memiliki SSL aktif:
+    # RewriteCond %{HTTPS} off
+    # RewriteCond %{HTTP_HOST} !^localhost [NC]
+    # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Jangan redirect jika request adalah file/folder yang ada
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Semua request non-file diarahkan ke index.php
+    RewriteRule ^(.*)$ index.php [L,QSA]
+</IfModule>
+
+# ----------------------------------------------------------
+# B. SECURITY HEADERS
+# ----------------------------------------------------------
+<IfModule mod_headers.c>
+    # Cegah clickjacking
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    # Cegah MIME sniffing
+    Header always set X-Content-Type-Options "nosniff"
+
+    # Aktifkan XSS Protection browser lama
+    Header always set X-XSS-Protection "1; mode=block"
+
+    # Referrer Policy
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Content Security Policy
+    # Izinkan: resource dari origin sendiri, Google Fonts, unpkg (Lucide Icons), Chart.js CDN
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';"
+
+    # Permissions Policy
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+
+    # HSTS — aktifkan setelah SSL terpasang dan redirect HTTPS sudah aktif
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+    # Sembunyikan versi server
+    Header always unset X-Powered-By
+    Header always unset Server
+</IfModule>
+
+# ----------------------------------------------------------
+# C. PROTEKSI FILE SENSITIF DI PUBLIC
+# ----------------------------------------------------------
+
+# Blokir akses ke file konfigurasi jika ada yang tersesat ke public
+<FilesMatch "\.(env|ini|conf|config|sql|log|sh|bat|htpasswd|DS_Store)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Blokir akses ke file backup
+<FilesMatch "\.(bak|orig|save|old|tmp|swp)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ----------------------------------------------------------
+# D. PHP SETTINGS (via .htaccess — berlaku jika hosting izinkan)
+# ----------------------------------------------------------
+<IfModule mod_php.c>
+    # Sembunyikan versi PHP
+    php_flag expose_php Off
+
+    # Session keamanan
+    php_value session.use_only_cookies 1
+    php_value session.use_trans_sid 0
+    php_flag session.cookie_httponly On
+    php_value session.gc_maxlifetime 7200
+
+    # Upload limits (sesuaikan dengan batasan hosting)
+    php_value upload_max_filesize 10M
+    php_value post_max_size 12M
+    php_value max_execution_time 120
+    php_value memory_limit 128M
+
+    # Nonaktifkan fungsi berbahaya
+    php_value disable_functions "exec,passthru,shell_exec,system,proc_open,popen"
+</IfModule>
+
+# PHP 8.x (mod_php8 atau php-fpm via FastCGI)
+<IfModule mod_php8.c>
+    php_flag expose_php Off
+    php_value session.use_only_cookies 1
+    php_value session.use_trans_sid 0
+    php_flag session.cookie_httponly On
+    php_value session.gc_maxlifetime 7200
+    php_value upload_max_filesize 10M
+    php_value post_max_size 12M
+    php_value max_execution_time 120
+    php_value memory_limit 128M
+</IfModule>
+
+# ----------------------------------------------------------
+# E. CACHE CONTROL UNTUK ASET STATIS
+# ----------------------------------------------------------
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css             "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png            "access plus 6 months"
+    ExpiresByType image/jpeg           "access plus 6 months"
+    ExpiresByType image/gif            "access plus 6 months"
+    ExpiresByType image/svg+xml        "access plus 1 month"
+    ExpiresByType image/webp           "access plus 6 months"
+    ExpiresByType application/font-woff2 "access plus 1 year"
+    ExpiresByType text/html            "access plus 0 seconds"
+</IfModule>
+
+# ----------------------------------------------------------
+# F. GZIP COMPRESSION
+# ----------------------------------------------------------
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css
+    AddOutputFilterByType DEFLATE application/javascript application/json
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# ----------------------------------------------------------
+# G. ERROR PAGES (opsional — buat file custom jika perlu)
+# ----------------------------------------------------------
+# ErrorDocument 403 /public/403.php
+# ErrorDocument 404 /public/404.php
+# ErrorDocument 500 /public/500.php

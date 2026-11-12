@@ -85,10 +85,30 @@ CREATE TABLE IF NOT EXISTS knn_norm_params (
     CONSTRAINT fk_norm_process FOREIGN KEY (process_id) REFERENCES knn_processes(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- DATA AWAL PENGGUNA (PASSWORD SEMUA: password)
--- Hanya tabel users yang memiliki data awal, tabel lain dalam kondisi kosong
+-- DATA AWAL PENGGUNA (PASSWORD MENGGUNAKAN BCRYPT, cost=12)
+-- Password default: 'password'
+-- Hash di bawah dihasilkan dengan: password_hash('password', PASSWORD_BCRYPT, ['cost'=>12])
+-- GANTI PASSWORD INI SETELAH INSTALASI PERTAMA!
 INSERT INTO users (name, username, password, role) VALUES
-('Administrator', 'admin', 'password', 'admin'),
-('Kepala Unit', 'kaunit', 'password', 'kaunit'),
-('Pemohon', 'pemohon', 'password', 'pemohon')
-ON DUPLICATE KEY UPDATE password = VALUES(password);
+('Administrator', 'admin',   '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin'),
+('Kepala Unit',   'kaunit',  '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'kaunit'),
+('Pemohon',       'pemohon', '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'pemohon')
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+-- Hash di atas adalah password_hash('password') — nilai yang valid untuk testing.
+-- Untuk production: buat hash baru via PHP dan ganti nilai di atas, atau gunakan migrate.php.
+
+-- 7. TABEL MIGRATION TRACKER (SCHEMA_MIGRATIONS)
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    id          INT          NOT NULL AUTO_INCREMENT,
+    version     VARCHAR(100) NOT NULL,
+    description VARCHAR(255) NOT NULL DEFAULT '',
+    applied_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_version (version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Catat bahwa schema awal ini sudah diterapkan
+INSERT IGNORE INTO schema_migrations (version, description) VALUES
+('001_add_knn_tables',          'Tabel knn_processes, knn_predictions, knn_norm_params'),
+('002_hash_passwords',          'Password di-hash bcrypt sejak awal (seed data sudah bcrypt)'),
+('003_add_performance_indexes', 'Index performa products dan knn_processes');

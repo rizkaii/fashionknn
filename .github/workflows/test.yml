@@ -1,0 +1,239 @@
+name: PHP Tests & Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # ============================================================
+  # JOB 1: PHP Syntax Check
+  # ============================================================
+  php-lint:
+    name: PHP Syntax Check
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        php-version: ['8.1', '8.2']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP ${{ matrix.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: pdo, pdo_mysql, mbstring, json, fileinfo
+          coverage: none
+
+      - name: Check PHP version
+        run: php --version
+
+      - name: Lint seluruh file PHP di app/
+        run: |
+          echo "=== Memeriksa syntax PHP di app/ ==="
+          find app/ -name "*.php" -print0 | xargs -0 -I{} php -l {}
+          echo "=== app/ OK ==="
+
+      - name: Lint seluruh file PHP di public/
+        run: |
+          echo "=== Memeriksa syntax PHP di public/ ==="
+          find public/ -name "*.php" -print0 | xargs -0 -I{} php -l {}
+          echo "=== public/ OK ==="
+
+      - name: Lint file PHP di root
+        run: |
+          echo "=== Memeriksa file PHP di root ==="
+          for f in migrate.php config.php; do
+            if [ -f "$f" ]; then php -l "$f"; fi
+          done
+          echo "=== Root PHP OK ==="
+
+  # ============================================================
+  # JOB 2: Validasi Struktur Project
+  # ============================================================
+  structure-check:
+    name: Validasi Struktur Project
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Pastikan folder penting ada
+        run: |
+          echo "=== Validasi Struktur Folder ==="
+          REQUIRED_DIRS=(
+            "app/config"
+            "app/helpers"
+            "app/middleware"
+            "app/services"
+            "app/views/layouts"
+            "app/views/components"
+            "public"
+            "public/assets/css"
+            "public/assets/js"
+            "database"
+            "database/migrations"
+            "storage/uploads"
+            "storage/logs"
+          )
+          MISSING=0
+          for dir in "${REQUIRED_DIRS[@]}"; do
+            if [ -d "$dir" ]; then
+              echo "  [OK] $dir"
+            else
+              echo "  [MISSING] $dir"
+              MISSING=$((MISSING+1))
+            fi
+          done
+          if [ $MISSING -gt 0 ]; then
+            echo "ERROR: $MISSING folder penting tidak ditemukan!"
+            exit 1
+          fi
+          echo "=== Semua folder OK ==="
+
+      - name: Pastikan file penting ada
+        run: |
+          echo "=== Validasi File Penting ==="
+          REQUIRED_FILES=(
+            "app/config/database.php"
+            "app/config/env.php"
+            "app/helpers/auth.php"
+            "app/helpers/functions.php"
+            "app/middleware/access.php"
+            "app/services/KNNService.php"
+            "app/services/DatasetService.php"
+            "app/services/PreprocessingService.php"
+            "app/services/EvaluationService.php"
+            "app/views/layouts/header.php"
+            "app/views/layouts/footer.php"
+            "public/index.php"
+            "public/dashboard.php"
+            "public/.htaccess"
+            "database/database.sql"
+            "migrate.php"
+            ".env.example"
+            ".gitignore"
+            "storage/uploads/.htaccess"
+            "storage/logs/.gitkeep"
+          )
+          MISSING=0
+          for f in "${REQUIRED_FILES[@]}"; do
+            if [ -f "$f" ]; then
+              echo "  [OK] $f"
+            else
+              echo "  [MISSING] $f"
+              MISSING=$((MISSING+1))
+            fi
+          done
+          if [ $MISSING -gt 0 ]; then
+            echo "ERROR: $MISSING file penting tidak ditemukan!"
+            exit 1
+          fi
+          echo "=== Semua file OK ==="
+
+      - name: Pastikan .env TIDAK ter-commit
+        run: |
+          echo "=== Memastikan .env tidak ada di repository ==="
+          if [ -f ".env" ]; then
+            echo "ERROR: File .env ditemukan di repository!"
+            echo "Tambahkan .env ke .gitignore dan hapus dari tracking:"
+            echo "  git rm --cached .env"
+            exit 1
+          else
+            echo "  [OK] .env tidak ada di repository"
+          fi
+
+      - name: Pastikan .env.example ada dan tidak berisi password asli
+        run: |
+          echo "=== Validasi .env.example ==="
+          if [ ! -f ".env.example" ]; then
+            echo "ERROR: .env.example tidak ditemukan!"
+            exit 1
+          fi
+          # Periksa apakah ada password yang terlihat diisi
+          if grep -qE "^DB_PASS=.+" .env.example; then
+            echo "WARNING: .env.example mungkin berisi password yang diisi"
+            echo "Pastikan DB_PASS kosong di .env.example"
+          fi
+          echo "  [OK] .env.example valid"
+
+      - name: Periksa .htaccess proteksi ada
+        run: |
+          echo "=== Validasi .htaccess proteksi ==="
+          HTACCESS_FILES=(
+            "app/.htaccess"
+            "database/.htaccess"
+            "storage/.htaccess"
+            "storage/uploads/.htaccess"
+            "public/.htaccess"
+          )
+          MISSING=0
+          for f in "${HTACCESS_FILES[@]}"; do
+            if [ -f "$f" ]; then
+              echo "  [OK] $f"
+            else
+              echo "  [MISSING] $f"
+              MISSING=$((MISSING+1))
+            fi
+          done
+          if [ $MISSING -gt 0 ]; then
+            echo "WARNING: $MISSING file .htaccess proteksi tidak ditemukan"
+          fi
+
+      - name: Validasi .gitignore berisi entri penting
+        run: |
+          echo "=== Validasi .gitignore ==="
+          REQUIRED_PATTERNS=(".env" "storage/uploads/*" "*.log")
+          for pattern in "${REQUIRED_PATTERNS[@]}"; do
+            if grep -qF "$pattern" .gitignore; then
+              echo "  [OK] '$pattern' ada di .gitignore"
+            else
+              echo "  [WARN] '$pattern' tidak ditemukan di .gitignore"
+            fi
+          done
+
+  # ============================================================
+  # JOB 3: Validasi Keamanan Dasar
+  # ============================================================
+  security-check:
+    name: Pemeriksaan Keamanan Dasar
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cari hardcoded credentials
+        run: |
+          echo "=== Pemeriksaan Hardcoded Credentials ==="
+          # Cari password yang mungkin hardcoded (kecuali di .env.example dan file SQL seed)
+          ISSUES=0
+          # Cari string password yang diisi (bukan kosong) di file PHP
+          if grep -rn --include="*.php" "DB_PASS\s*=\s*['\"][^'\"]\+" app/ public/ 2>/dev/null; then
+            echo "WARNING: Mungkin ada DB_PASS hardcoded di PHP files"
+            ISSUES=$((ISSUES+1))
+          fi
+          if [ $ISSUES -eq 0 ]; then
+            echo "  [OK] Tidak ada credentials hardcoded yang terdeteksi"
+          fi
+
+      - name: Periksa output escaping (h() function)
+        run: |
+          echo "=== Periksa penggunaan h() untuk output ==="
+          # Hitung berapa kali echo langsung tanpa h() digunakan
+          RAW_ECHO=$(grep -rn --include="*.php" 'echo\s*\$' public/ | grep -v "h(\$" | grep -v "csrf_field" | grep -v "BASE_URL" | grep -v "filemtime" | wc -l || true)
+          echo "  Potensi raw echo tanpa escaping: $RAW_ECHO baris"
+          echo "  [INFO] Pastikan semua output user data menggunakan h() atau htmlspecialchars()"
+
+      - name: Periksa penggunaan prepared statements
+        run: |
+          echo "=== Periksa penggunaan prepared statements ==="
+          # Cari query langsung tanpa prepare (potensi SQL injection)
+          DIRECT_QUERY=$(grep -rn --include="*.php" 'pdo->query\s*(' public/ app/services/ | grep -v "SHOW\|DESCRIBE\|SELECT.*FROM.*WHERE.*1\b" | wc -l || true)
+          echo "  pdo->query() digunakan: $DIRECT_QUERY kali"
+          echo "  [INFO] Pastikan semua query dengan input user menggunakan prepare() + execute()"

@@ -1,49 +1,63 @@
 <?php
 require_once dirname(__DIR__) . '/app/config/database.php';
+require_once APP_PATH . '/helpers/auth.php';
 require_once APP_PATH . '/helpers/functions.php';
 
 $error = '';
 
 // Jika sudah login, langsung arahkan ke dashboard
-if (isset($_SESSION['user'])) {
+if (logged()) {
     header('Location: dashboard.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
+    csrf_check();
+
+    $username = clean_input($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
     if ($username === '' || $password === '') {
         $error = 'Username dan password wajib diisi.';
     } else {
-        $stmt = $pdo->prepare('SELECT * FROM users WHERE username = ? LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, name, username, password, role FROM users WHERE username = ? LIMIT 1');
         $stmt->execute([$username]);
         $user = $stmt->fetch();
 
-        // Validasi password tanpa hashing (plain-text) dengan fallback hash jika ada sisa data lama
+        // Verifikasi password: mendukung bcrypt dan plain-text lama (untuk migrasi)
         $is_valid = false;
         if ($user) {
-            if ($user['password'] === $password) {
+            if (password_verify($password, $user['password'])) {
+                // Password sudah di-hash dengan bcrypt — normal
                 $is_valid = true;
-            } elseif (password_verify($password, $user['password'])) {
+            } elseif ($user['password'] === $password) {
+                // Password masih plain text (data lama) — valid, lalu upgrade ke bcrypt
                 $is_valid = true;
-                // Update ke plain text sesuai instruksi
-                $pdo->prepare('UPDATE users SET password = ? WHERE id = ?')->execute([$password, $user['id']]);
+                $newHash = hash_password($password);
+                $pdo->prepare('UPDATE users SET password = ? WHERE id = ?')->execute([$newHash, $user['id']]);
             }
         }
 
         if ($user && $is_valid) {
+            // Cegah session fixation: regenerate ID sebelum simpan data login
+            session_regenerate_id(true);
+
             $_SESSION['user'] = [
-                'id'       => $user['id'],
+                'id'       => (int)$user['id'],
                 'name'     => $user['name'],
                 'username' => $user['username'],
                 'role'     => $user['role'],
             ];
-            session_regenerate_id(true);
-            header('Location: dashboard.php');
+            $_SESSION['_last_activity'] = time();
+            $_SESSION['_login_time']    = time();
+
+            // Redirect ke halaman yang diminta sebelumnya (jika ada), atau dashboard
+            $redirect = $_SESSION['redirect_after_login'] ?? '';
+            unset($_SESSION['redirect_after_login']);
+            header('Location: ' . (filter_var($redirect, FILTER_VALIDATE_URL) ? $redirect : 'dashboard.php'));
             exit;
         } else {
+            // Pesan generik: jangan beritahu apakah username atau password yang salah
             $error = 'Username atau kata sandi tidak cocok. Silakan periksa kembali.';
         }
     }
@@ -217,6 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php endif; ?>
 
     <form method="POST" action="">
+      <?= csrf_field() ?>
       <div class="form-group mb-3">
         <label class="form-label" for="username" style="font-weight: 600; font-size: 12.5px; color: #334155;">Username</label>
         <div class="input-wrapper">

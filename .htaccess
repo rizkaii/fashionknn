@@ -1,0 +1,30 @@
+# ============================================================
+# FashionTrendKNN — Root .htaccess
+# Redirect semua request ke folder public/
+# ============================================================
+# Catatan: File ini berguna jika document root hosting diarahkan
+# ke folder fashiontrendknn/ (bukan langsung ke public/).
+# Jika document root sudah diarahkan ke public/, file ini
+# tidak diperlukan tetapi tidak berbahaya.
+# ============================================================
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Jika request sudah di dalam public/, biarkan
+    RewriteRule ^public/ - [L]
+
+    # Redirect semua request ke public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# Blokir akses ke file sensitif di root
+<FilesMatch "\.(env|sql|log|sh|bat|htpasswd)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
