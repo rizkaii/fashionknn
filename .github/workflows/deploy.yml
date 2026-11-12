@@ -146,7 +146,7 @@ jobs:
           script: |
             set -e
 
-            PROJECT_DIR="/path/to/your/project"
+            PROJECT_DIR="/home2/trendfas/fashiontrendknn"
 
             echo "========================================"
             echo "  FashionTrendKNN — Deployment"
