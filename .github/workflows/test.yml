@@ -141,8 +141,8 @@ jobs:
           echo "=== Memastikan .env tidak ada di repository ==="
           if [ -f ".env" ]; then
             echo "ERROR: File .env ditemukan di repository!"
-            echo "Tambahkan .env ke .gitignore dan hapus dari tracking:"
-            echo "  git rm --cached .env"
+            echo "Hapus dari tracking dengan: git rm --cached .env"
+            echo "Lalu commit ulang perubahan tersebut."
             exit 1
           else
             echo "  [OK] .env tidak ada di repository"

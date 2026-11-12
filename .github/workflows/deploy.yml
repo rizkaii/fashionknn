@@ -8,7 +8,7 @@ on:
 
 jobs:
   # ============================================================
-  # JOB 1: Validasi sebelum deploy
+  # JOB 1: Validasi PHP sebelum deploy
   # ============================================================
   pre-deploy-check:
     name: Pre-deploy Validation
@@ -58,25 +58,46 @@ jobs:
 
   # ============================================================
   # JOB 2: Deploy via SSH ke ArenHost
+  # Catatan: Job ini akan SKIP (bukan FAIL) jika secrets belum
+  # dikonfigurasi. Tambahkan secrets setelah hosting dibeli.
   # ============================================================
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: pre-deploy-check  # Hanya deploy jika pre-check berhasil
-    environment: production   # Gunakan environment GitHub untuk proteksi tambahan
+    needs: pre-deploy-check
+    # environment: production  # Uncomment setelah secrets dikonfigurasi di GitHub
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Cek konfigurasi secrets
+        id: secrets_check
+        env:
+          DEPLOY_HOST: ${{ secrets.HOST }}
+        run: |
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "⚠️  GitHub Secret HOST belum dikonfigurasi."
+            echo "   Deployment di-skip. Tambahkan secrets berikut setelah hosting dibeli:"
+            echo "   - HOST          : hostname atau IP server"
+            echo "   - USERNAME      : username SSH hosting"
+            echo "   - SSH_PRIVATE_KEY: private key untuk koneksi SSH"
+            echo "   - PORT          : port SSH (biasanya 22)"
+          else
+            echo "configured=true" >> $GITHUB_OUTPUT
+            echo "✅ Secrets terdeteksi, melanjutkan deployment."
+          fi
+
       - name: Deploy via SSH
+        if: steps.secrets_check.outputs.configured == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host:        ${{ secrets.HOST }}
           username:    ${{ secrets.USERNAME }}
           key:         ${{ secrets.SSH_PRIVATE_KEY }}
           port:        ${{ secrets.PORT }}
-          script_stop: true   # Hentikan jika ada perintah yang gagal
+          script_stop: true
 
           script: |
             echo "=== Memulai Deployment ==="
@@ -86,7 +107,8 @@ jobs:
             # Navigasi ke direktori project
             cd /home/${{ secrets.USERNAME }}/fashiontrendknn || {
               echo "ERROR: Direktori project tidak ditemukan!"
-              echo "Pastikan path /home/${{ secrets.USERNAME }}/fashiontrendknn sudah benar."
+              echo "Pastikan sudah menjalankan git clone terlebih dahulu."
+              echo "  git clone git@github.com:REPO /home/${{ secrets.USERNAME }}/fashiontrendknn"
               exit 1
             }
 
@@ -102,57 +124,52 @@ jobs:
             echo "=== Status Git ==="
             git status --short
 
-            # Ambil update dari remote (fetch saja, belum merge)
+            # Ambil update dari remote
             echo "=== Git Fetch ==="
             git fetch origin main
 
-            # Gunakan ff-only untuk mencegah merge yang tidak diinginkan
-            # Jika ada konflik, deployment akan gagal (aman)
+            # Pull dengan ff-only — gagal jika ada konflik lokal (aman)
             echo "=== Git Pull (ff-only) ==="
             git pull --ff-only origin main || {
               echo "ERROR: git pull --ff-only gagal."
               echo "Mungkin ada perubahan lokal di server yang konflik."
-              echo "Periksa server secara manual."
+              echo "Periksa server secara manual sebelum deploy ulang."
               exit 1
             }
 
             echo "=== Commit terbaru ==="
             git log -1 --pretty=format:"Commit: %H%nAuthor: %an%nDate:   %ai%nMessage: %s"
+            echo ""
 
-            # Pastikan .env ada (tidak ikut git)
+            # Pastikan .env ada di server
             if [ ! -f ".env" ]; then
-              echo "WARNING: File .env tidak ditemukan di server!"
-              echo "Buat file .env dari .env.example dan isi dengan konfigurasi production."
-              echo "  cp .env.example .env && nano .env"
+              echo "ERROR: File .env tidak ditemukan di server!"
+              echo "Buat .env dari template: cp .env.example .env && nano .env"
               exit 1
             fi
 
-            # Pastikan storage/logs ada dan writable
+            # Pastikan folder storage ada dan writable
             mkdir -p storage/logs
             mkdir -p storage/uploads
             chmod 755 storage/logs
             chmod 755 storage/uploads
 
-            # Periksa apakah ada migration baru yang perlu dijalankan
-            # (opsional — jalankan manual jika migration mengubah schema)
-            # php migrate.php
-
             echo ""
             echo "=== Deployment Selesai ==="
-            echo "URL: Periksa domain Anda"
             echo "Waktu: $(date)"
 
-      - name: Notify deployment success
-        if: success()
+      - name: Ringkasan deployment
+        if: steps.secrets_check.outputs.configured == 'true' && success()
         run: |
-          echo "Deployment ke production berhasil!"
-          echo "Commit: ${{ github.sha }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Actor:  ${{ github.actor }}"
+          echo "✅ Deployment berhasil!"
+          echo "Commit : ${{ github.sha }}"
+          echo "Branch : ${{ github.ref_name }}"
+          echo "Actor  : ${{ github.actor }}"
 
-      - name: Notify deployment failure
-        if: failure()
+      - name: Deployment di-skip (secrets belum ada)
+        if: steps.secrets_check.outputs.configured == 'false'
         run: |
-          echo "Deployment GAGAL!"
-          echo "Periksa log di atas untuk detail error."
-          echo "Commit: ${{ github.sha }}"
+          echo "ℹ️  Deployment di-skip — secrets belum dikonfigurasi."
+          echo "Ini normal jika hosting belum dibeli."
+          echo "Pre-deploy validation sudah lulus ✅"
+          exit 0
