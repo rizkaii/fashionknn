@@ -1,5 +1,6 @@
-CREATE DATABASE IF NOT EXISTS fashion_knn CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE fashion_knn;
+-- Schema: fashiontrendknn
+-- Import via: mysql -u USER -pPASS DBNAME < database.sql
+-- Database sudah dibuat via cPanel, tidak perlu CREATE DATABASE di sini.
 
 -- 1. TABEL PENGGUNA (USERS)
 CREATE TABLE IF NOT EXISTS users (
