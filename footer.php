@@ -1,0 +1,1 @@
+</div><footer>Fashion Trend KNN · Sistem Analisis Penjualan Tokopedia</footer></main></div></body></html>
